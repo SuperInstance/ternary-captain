@@ -1,114 +1,94 @@
-# ternary-captain: Captain/leadership pattern for fleet coordination
+# ternary-captain
 
-## Why This Exists
+**Captain/leadership pattern for fleet coordination**
 
-A fleet of agents needs leadership — not a single point of failure, but a pattern where one agent coordinates others, delegates work, and makes decisions. This crate implements the PLATO captain concept: a lead agent that weighs ternary options, assigns tasks by specialization, aggregates sensor data, and maintains a succession plan for when leadership must transfer.
+[![ternary](https://img.shields.io/badge/ecosystem-ternary-blue)](https://github.com/orgs/SuperInstance/repositories?q=ternary)
+[![tests](https://img.shields.io/badge/tests-22-green)]()
 
-## Core Concepts
+## Overview
 
-**Captain**: The lead agent. Maintains a roster, makes decisions via the DecisionEngine, delegates tasks, and tracks succession.
+Captain/leadership pattern for fleet coordination.
 
-**Ternary decisions**: Choices are always three-valued: Negative (reject/retreat), Zero (abstain/gather info), Positive (accept/advance). The DecisionEngine aggregates votes into a fleet decision.
+Provides a `Captain` struct that leads a group of agents, a `DecisionEngine`
+for weighing ternary options, a `Delegator` for assigning tasks, a
+`SituationRoom` for aggregating sensor data, a `FleetReport` for status
+aggregation, and a `SuccessionPlan` for captain handoff.
 
-**Quorum**: Minimum number of votes required before a decision is valid. Prevents a single agent from deciding for the fleet.
+## Architecture
 
-**Delegation**: Tasks are assigned to agents by matching task type to agent specialization, breaking ties by fitness score.
+- **`AgentInfo`** — core data structure
+- **`DecisionEngine`** — core data structure
+- **`Delegator`** — core data structure
+- **`SituationRoom`** — core data structure
+- **`FleetReport`** — core data structure
+- **`SuccessionPlan`** — core data structure
+- **`Captain`** — core data structure
+- **`Ternary`** — state enumeration
+- **`AgentStatus`** — state enumeration
 
-**Succession plan**: Ordered list of successors. If the captain becomes unavailable, the next in line takes over. Prevents orphaned fleets.
+### Key Functions
 
-## Quick Start
+- `to_i8()`
+- `available()`
+- `new()`
+- `decide()`
+- `decide_weighted()`
+- `consensus_strength()`
+- `new()`
+- `assign()`
+- `get_assignment()`
+- `complete()`
+- ... and 28 more
+
+## Why Ternary?
+
+The balanced ternary system {-1, 0, +1} (also known as Z₃) is the mathematically optimal discrete encoding:
+- **More expressive than binary**: three states capture positive, neutral, and negative
+- **Natural for decisions**: accept/reject/abstain, buy/hold/sell, agree/disagree/neutral
+- **Self-balancing**: the 0 state acts as a universal screen, preventing pathological lock-in
+- **Z₃ cyclic dynamics**: rock-paper-scissors is the only natural coordination mechanism
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| Lines of Rust | 634 |
+| Test count | 22 |
+| Public types | 9 |
+| Public functions | 38 |
+
+## Ecosystem
+
+This crate is part of the **[SuperInstance Ternary Fleet](https://github.com/orgs/SuperInstance/repositories?q=ternary)**:
+
+- **[ternary-core](https://github.com/SuperInstance/ternary-core)** — shared traits and Z₃ arithmetic
+- **[ternary-grid](https://github.com/SuperInstance/ternary-grid)** — spatial grid with {-1, 0, +1} cells
+- **[ternary-graph](https://github.com/SuperInstance/ternary-graph)** — ternary-weighted graph algorithms
+- **[ternary-automata](https://github.com/SuperInstance/ternary-automata)** — three-state cellular automata
+- **[ternary-compiler](https://github.com/SuperInstance/ternary-compiler)** — expression compiler and optimizer
+
+200+ crates. 4,300+ tests. One pattern.
+
+## Research Context
+
+The ternary approach connects to several active research areas:
+- **Ternary Neural Networks** (TNNs): weights constrained to {-1, 0, +1} for efficient inference
+- **Huawei's ternary chip**: 7nm ternary silicon with 60% less power consumption
+- **Active inference**: free energy minimization naturally maps to ternary action selection
+- **Cyclic dominance**: RPS dynamics maintain biodiversity in spatial ecology
+- **Z₃ group theory**: the only algebraic group on three elements is cyclic addition mod 3
+
+## Usage
 
 ```toml
 [dependencies]
-ternary-captain = "0.1"
+ternary-captain = "0.1.0"
 ```
 
 ```rust
-use ternary_captain::{Captain, AgentInfo, AgentStatus, Ternary, DecisionEngine};
-
-let mut captain = Captain::new("cap-1", 2); // quorum of 2
-
-captain.enlist(AgentInfo {
-    id: "scout-1".into(),
-    status: AgentStatus::Ready,
-    specialization: "recon".into(),
-    fitness: 0.9,
-});
-captain.enlist(AgentInfo {
-    id: "medic-1".into(),
-    status: AgentStatus::Ready,
-    specialization: "medical".into(),
-    fitness: 0.7,
-});
-
-// Delegate a recon task
-let assigned = captain.delegate("patrol-north", "recon");
-assert_eq!(assigned, Some("scout-1".to_string()));
-
-// Make a fleet decision
-let votes = vec![Ternary::Positive, Ternary::Positive, Ternary::Zero];
-let decision = captain.decide_from_votes(&votes);
-assert_eq!(decision, Some(Ternary::Positive));
+use ternary_captain;
 ```
-
-## API Overview
-
-| Type | What it is |
-|------|-----------|
-| `Captain` | Lead agent with roster, decisions, delegation, and succession |
-| `DecisionEngine` | Aggregates ternary votes with quorum requirement |
-| `Delegator` | Assigns tasks to best-fit agents by specialization and fitness |
-| `SituationRoom` | Aggregates ternary sensor reports into fleet-wide picture |
-| `FleetReport` | Status rollup: health ratio, operational status, offline agents |
-| `SuccessionPlan` | Ordered succession line with promote/remove operations |
-| `AgentInfo` | Agent record: id, status, specialization, fitness |
-| `AgentStatus` | Ready, Busy, Offline, or Compromised |
-
-## How It Works
-
-The DecisionEngine uses simple majority voting. On ties, the priority order is Negative > Zero > Positive (conservative bias). Weighted voting allows higher-fitness agents to have more influence.
-
-Delegation scans the roster for agents that match the task's specialization and are in Ready status, then picks the highest-fitness match. This is O(n) per delegation — fine for typical fleet sizes but not optimized for thousands of agents.
-
-The SituationRoom collects ternary reports and aggregates them the same way as decisions: majority vote. This gives a fleet-level ternary picture from individual agent perspectives.
-
-Succession is a simple ordered list. When the captain transfers, `promote_next()` removes the heir from the line and the next agent becomes heir. This is deliberate — it models military succession, not democratic election.
-
-## Known Limitations
-
-- **Tie-breaking is arbitrary**: When votes are evenly split, the result depends on enum ordering, not strategic reasoning. Real fleets may need configurable tie-breaking.
-- **No vote verification**: The system trusts all votes equally. Malicious agents can manipulate decisions by submitting strategically timed votes.
-- **Single-level hierarchy**: No support for captains-of-captains. Deep hierarchies require composing multiple Captain instances manually.
-- **No time-based decisions**: Votes aren't timestamped. Late votes count the same as early ones.
-
-## Use Cases
-
-- **Room leadership**: One agent coordinates sensors and actuators in a physical room.
-- **Fleet task distribution**: Assign exploration, maintenance, or repair tasks to specialists.
-- **Consensus decisions**: Multiple agents vote on whether to enter a room, trigger an alert, or stand down.
-- **Graceful leadership transfer**: When a room's captain agent is replaced, the succession plan ensures continuity.
-
-## Ecosystem Context
-
-Part of the SuperInstance ternary ecosystem. The captain pattern maps directly to the PLATO concept and capitaine-1's flagship role:
-
-- `ternary-agent` provides the Agent types that populate the roster
-- `ternary-tidelight` synchronizes when captains make decisions (tick-aligned)
-- `ternary-flux` can flow decisions through the system
-- `ternary-muse` can generate creative ternary patterns for decision exploration
-
-No external dependencies — pure Rust.
 
 ## License
 
 MIT
-
-## See Also
-- **ternary-consensus** — related fleet coordination
-- **ternary-quorum** — related fleet coordination
-- **ternary-room** — related fleet coordination
-- **ternary-helm** — related fleet coordination
-- **ternary-conduct** — related fleet coordination
-- **ternary-steward** — related fleet coordination
-- **ternary-platoon** — related fleet coordination
-
