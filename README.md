@@ -102,3 +102,13 @@ No external dependencies — pure Rust.
 ## License
 
 MIT
+
+## See Also
+- **ternary-consensus** — related fleet coordination
+- **ternary-quorum** — related fleet coordination
+- **ternary-room** — related fleet coordination
+- **ternary-helm** — related fleet coordination
+- **ternary-conduct** — related fleet coordination
+- **ternary-steward** — related fleet coordination
+- **ternary-platoon** — related fleet coordination
+
