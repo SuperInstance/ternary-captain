@@ -1,93 +1,123 @@
-# ternary-captain
+# Ternary Captain
 
-**Captain/leadership pattern for fleet coordination**
+**Ternary Captain** implements the captain/leadership pattern for fleet coordination — providing a `Captain` that leads agent groups, a `DecisionEngine` for ternary option weighing, a `Delegator` for task assignment, a `SituationRoom` for sensor aggregation, and a `SuccessionPlan` for captain handoff.
 
-[![ternary](https://img.shields.io/badge/ecosystem-ternary-blue)](https://github.com/orgs/SuperInstance/repositories?q=ternary)
-[![tests](https://img.shields.io/badge/tests-22-green)]()
+## Why It Matters
 
-## Overview
+Every coordinated fleet needs a leader — but the leader must make decisions in ternary space (proceed +1, abstain 0, reject -1), delegate tasks to the right agents based on specialization, aggregate situational awareness from distributed sensors, and hand off leadership gracefully during failures. Ternary Captain provides all five primitives. It's the fleet-level analogue of `openmind-conductor`'s ensemble coordination, but focused on hierarchical command rather than peer-to-peer orchestration.
 
-Captain/leadership pattern for fleet coordination.
+## How It Works
 
-Provides a `Captain` struct that leads a group of agents, a `DecisionEngine`
-for weighing ternary options, a `Delegator` for assigning tasks, a
-`SituationRoom` for aggregating sensor data, a `FleetReport` for status
-aggregation, and a `SuccessionPlan` for captain handoff.
+### Captain Decision Engine
 
-## Architecture
-
-- **`AgentInfo`** — core data structure
-- **`DecisionEngine`** — core data structure
-- **`Delegator`** — core data structure
-- **`SituationRoom`** — core data structure
-- **`FleetReport`** — core data structure
-- **`SuccessionPlan`** — core data structure
-- **`Captain`** — core data structure
-- **`Ternary`** — state enumeration
-- **`AgentStatus`** — state enumeration
-
-### Key Functions
-
-- `to_i8()`
-- `available()`
-- `new()`
-- `decide()`
-- `decide_weighted()`
-- `consensus_strength()`
-- `new()`
-- `assign()`
-- `get_assignment()`
-- `complete()`
-- ... and 28 more
-
-## Why Ternary?
-
-The balanced ternary system {-1, 0, +1} (also known as Z₃) is the mathematically optimal discrete encoding:
-- **More expressive than binary**: three states capture positive, neutral, and negative
-- **Natural for decisions**: accept/reject/abstain, buy/hold/sell, agree/disagree/neutral
-- **Self-balancing**: the 0 state acts as a universal screen, preventing pathological lock-in
-- **Z₃ cyclic dynamics**: rock-paper-scissors is the only natural coordination mechanism
-
-## Stats
-
-| Metric | Value |
-|--------|-------|
-| Lines of Rust | 634 |
-| Test count | 22 |
-| Public types | 9 |
-| Public functions | 38 |
-
-## Ecosystem
-
-This crate is part of the **[SuperInstance Ternary Fleet](https://github.com/orgs/SuperInstance/repositories?q=ternary)**:
-
-- **[ternary-core](https://github.com/SuperInstance/ternary-core)** — shared traits and Z₃ arithmetic
-- **[ternary-grid](https://github.com/SuperInstance/ternary-grid)** — spatial grid with {-1, 0, +1} cells
-- **[ternary-graph](https://github.com/SuperInstance/ternary-graph)** — ternary-weighted graph algorithms
-- **[ternary-automata](https://github.com/SuperInstance/ternary-automata)** — three-state cellular automata
-- **[ternary-compiler](https://github.com/SuperInstance/ternary-compiler)** — expression compiler and optimizer
-
-200+ crates. 4,300+ tests. One pattern.
-
-## Research Context
-
-The ternary approach connects to several active research areas:
-- **Ternary Neural Networks** (TNNs): weights constrained to {-1, 0, +1} for efficient inference
-- **Huawei's ternary chip**: 7nm ternary silicon with 60% less power consumption
-- **Active inference**: free energy minimization naturally maps to ternary action selection
-- **Cyclic dominance**: RPS dynamics maintain biodiversity in spatial ecology
-- **Z₃ group theory**: the only algebraic group on three elements is cyclic addition mod 3
-
-## Usage
-
-```toml
-[dependencies]
-ternary-captain = "0.1.0"
 ```
+DecisionEngine weighs options:
+    for each option:
+        compute weighted_sum = Σ (agent_fitness · agent_vote)
+        decision = ternary_sign(weighted_sum)
+            +1 if sum > threshold
+             0 if |sum| ≤ threshold
+            -1 if sum < threshold
+```
+
+Decision: **O(N)** for N agents voting. The threshold prevents flip-flopping on near-ties.
+
+### Delegation
 
 ```rust
-use ternary_captain;
+delegate(task, agents) → assignment:
+    candidates = agents.filter(|a| a.status == Ready && a.specialization matches)
+    best = candidates.max_by(fitness)
+    assign task to best
 ```
+
+Delegation: **O(N)** scan of agent list. Assignment tracking enables load balancing.
+
+### Situation Room
+
+Aggregates sensor data from all agents:
+
+```
+SituationRoom {
+    reports: HashMap<agent_id, SensorReport>,
+    aggregate: AggregateSnapshot,
+}
+```
+
+Update: **O(1)** per agent report. Aggregate computation: **O(N)** per snapshot.
+
+### Succession Planning
+
+When a captain fails, the `SuccessionPlan` determines the next captain:
+
+```
+SuccessionPlan {
+    order: Vec<agent_id>,  // ranked by fitness + leadership score
+    current_index: usize,
+}
+
+next_captain() → order[current_index]
+```
+
+Succession: **O(1)** (pre-computed order). Re-ranking on fitness changes: **O(N log N)**.
+
+### Fleet Report
+
+```rust
+FleetReport {
+    total_agents: usize,
+    ready: usize,
+    busy: usize,
+    offline: usize,
+    compromised: usize,
+    avg_fitness: f64,
+}
+```
+
+Computation: **O(N)** single pass.
+
+## Quick Start
+
+```rust
+use ternary_captain::{Captain, AgentInfo, AgentStatus, Ternary};
+
+let mut captain = Captain::new("fleet-alpha");
+captain.add_agent(AgentInfo {
+    id: "node-1".into(),
+    status: AgentStatus::Ready,
+    specialization: "sensor".into(),
+    fitness: 0.9,
+});
+
+let decision = captain.decide("increase_sampling_rate");
+println!("Decision: {:?}", decision); // Positive, Zero, or Negative
+```
+
+## API
+
+| Type | Description |
+|------|-------------|
+| `Captain` | Fleet leader with decision engine and delegation |
+| `AgentInfo` | id, status, specialization, fitness |
+| `AgentStatus` | Ready, Busy, Offline, Compromised |
+| `DecisionEngine` | Ternary decision from weighted votes |
+| `Delegator` | Task assignment by specialization and fitness |
+| `SituationRoom` | Sensor data aggregation |
+| `FleetReport` | Aggregate fleet status |
+| `SuccessionPlan` | Captain handoff ordering |
+| `Ternary` | Negative (-1), Zero (0), Positive (+1) |
+
+## Architecture Notes
+
+Ternary Captain provides hierarchical leadership for fleet coordination in SuperInstance. In γ + η = C, the captain's Positive (+1) decisions drive γ (growth — fleet-wide expansion and task execution), Negative (-1) decisions implement η (avoidance — rejecting dangerous operations), and Zero (0) maintains equilibrium (wait for more information). Integrates with `ternary-beacon` for captain discovery and `ternary-command` for order dispatch.
+
+See [ARCHITECTURE.md](https://github.com/SuperInstance/SuperInstance/blob/main/ARCHITECTURE.md) for fleet leadership architecture.
+
+## References
+
+1. Lamport, L. (1998). "The Part-Time Parliament." *ACM Transactions on Computer Systems*, 16(2). (Paxos consensus)
+2. Oki, B. M. & Liskov, B. (1988). "Viewstamped Replication." *PODC*.
+3. Marinescu, D. C. (2017). *Cloud Computing: Theory and Practice*, 2nd ed. Morgan Kaufmann.
 
 ## License
 
